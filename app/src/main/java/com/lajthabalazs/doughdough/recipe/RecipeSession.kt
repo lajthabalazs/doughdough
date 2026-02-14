@@ -64,7 +64,9 @@ data class RecipeSession(
                         durationMillis = s.getLong("durationMillis")
                     )
                 }
-                var session = RecipeSession(
+                // Do not auto-advance when alarm time has passed: we stay on timer screen and count to negative
+                // until the user taps "Start <step>"
+                RecipeSession(
                     recipe = Recipe(
                         id = obj.getString("recipeId"),
                         name = obj.getString("recipeName"),
@@ -73,21 +75,6 @@ data class RecipeSession(
                     currentStepIndex = obj.getInt("currentStepIndex"),
                     nextAlarmAtMillis = obj.optLong("nextAlarmAtMillis", 0)
                 )
-                // If we were waiting but the alarm time has passed (e.g. app was killed), advance to the next step
-                if (session.nextAlarmAtMillis > 0 && session.nextAlarmAtMillis <= System.currentTimeMillis()) {
-                    val nextIndex = session.currentStepIndex + 1
-                    if (nextIndex < steps.size) {
-                        session = session.copy(
-                            currentStepIndex = nextIndex,
-                            nextAlarmAtMillis = 0
-                        )
-                        save(context, session)
-                    } else {
-                        session = session.copy(nextAlarmAtMillis = 0)
-                        save(context, session)
-                    }
-                }
-                session
             } catch (e: Exception) {
                 null
             }

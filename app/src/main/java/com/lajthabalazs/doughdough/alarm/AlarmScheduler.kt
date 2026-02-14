@@ -28,7 +28,7 @@ object AlarmScheduler {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             val showIntent = Intent(context, MainActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                putExtra(MainActivity.EXTRA_OPEN_TASK_STEP, stepIndex)
+                // Do not pass EXTRA_OPEN_TASK_STEP: remain on timer screen (count to negative)
             }
             val showPendingIntent = PendingIntent.getActivity(context, REQUEST_SHOW + stepIndex, showIntent, flags)
             val alarmInfo = AlarmManager.AlarmClockInfo(triggerAtMillis, showPendingIntent)

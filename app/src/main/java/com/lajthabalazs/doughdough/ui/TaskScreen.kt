@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.lajthabalazs.doughdough.alarm.AlarmScheduler
+import com.lajthabalazs.doughdough.alarm.AlarmSoundManager
 import com.lajthabalazs.doughdough.data.RecipeStep
 import com.lajthabalazs.doughdough.notification.NotificationHelper
 import com.lajthabalazs.doughdough.recipe.RecipeSession
@@ -47,25 +48,21 @@ fun TaskScreen(
 ) {
     val context = LocalContext.current
     var showCancelConfirm by remember { mutableStateOf(false) }
-    // When waiting, we're waiting FOR the next step; when not, we show current step
+    // When waiting, we're waiting FOR the next step; when alarm has rung we stay on timer and count negative
     val isWaiting = session.nextAlarmAtMillis > System.currentTimeMillis()
     val nextStepIndex = session.currentStepIndex + 1
     val nextStep = session.recipe.steps.getOrNull(nextStepIndex)
-    val step = if (isWaiting) null else session.currentStep
-    if (step == null && !isWaiting) return  // No step and not waiting = shouldn't happen
+    val showTimerView = nextStep != null && session.nextAlarmAtMillis != 0L
+    val step = if (showTimerView) null else session.currentStep
+    if (step == null && !showTimerView) return  // No step and not showing timer = shouldn't happen
     var remainingMillis by remember(session.nextAlarmAtMillis) {
-        mutableLongStateOf((session.nextAlarmAtMillis - System.currentTimeMillis()).coerceAtLeast(0))
+        mutableLongStateOf(session.nextAlarmAtMillis - System.currentTimeMillis())
     }
 
     LaunchedEffect(session.nextAlarmAtMillis) {
-        if (session.nextAlarmAtMillis > 0) {
+        if (session.nextAlarmAtMillis != 0L) {
             while (true) {
-                val left = (session.nextAlarmAtMillis - System.currentTimeMillis()).coerceAtLeast(0)
-                remainingMillis = left
-                if (left <= 0) {
-                    onStepComplete()  // Refresh session (alarm fired, may have updated)
-                    break
-                }
+                remainingMillis = session.nextAlarmAtMillis - System.currentTimeMillis()
                 delay(1000)
             }
         }
@@ -85,7 +82,7 @@ fun TaskScreen(
         )
         Spacer(modifier = Modifier.height(8.dp))
 
-        if (!isWaiting && step != null) {
+        if (!showTimerView && step != null) {
             Text(
                 text = step.title,
                 style = MaterialTheme.typography.headlineMedium,
@@ -113,7 +110,21 @@ fun TaskScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        if (!isWaiting && step != null) {
+        if (!showTimerView && step != null) {
+            if (session.currentStepIndex > 0) {
+                TextButton(
+                    onClick = {
+                        session.setCurrentStep(session.currentStepIndex - 1)
+                        session.nextAlarmAtMillis = 0
+                        RecipeSession.save(context, session)
+                        onStepComplete()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Go back")
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
             Button(
                 onClick = {
                     if (session.hasNextStep) {
@@ -130,7 +141,7 @@ fun TaskScreen(
                     style = MaterialTheme.typography.titleMedium
                 )
             }
-        } else if (isWaiting && nextStep != null) {
+        } else if (showTimerView) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -148,8 +159,23 @@ fun TaskScreen(
                     color = MaterialTheme.colorScheme.primary
                 )
                 Spacer(modifier = Modifier.height(16.dp))
+                TextButton(
+                    onClick = {
+                        AlarmSoundManager.stop()
+                        AlarmScheduler.cancelAlarm(context, nextStepIndex)
+                        session.setCurrentStep((session.currentStepIndex - 1).coerceAtLeast(0))
+                        session.nextAlarmAtMillis = 0
+                        RecipeSession.save(context, session)
+                        onStepComplete()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Go back")
+                }
+                Spacer(modifier = Modifier.height(8.dp))
                 OutlinedButton(
                     onClick = {
+                        AlarmSoundManager.stop()
                         AlarmScheduler.cancelAlarm(context, nextStepIndex)
                         session.nextAlarmAtMillis = 0
                         session.setCurrentStep(nextStepIndex)
@@ -157,7 +183,24 @@ fun TaskScreen(
                         onStepComplete()
                     }
                 ) {
-                    Text("Start early")
+                    Text("Start ${nextStep.title}")
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                TextButton(
+                    onClick = {
+                        val newTrigger = if (session.nextAlarmAtMillis + 60_000 < System.currentTimeMillis()) {
+                            System.currentTimeMillis() + 60_000
+                        } else {
+                            session.nextAlarmAtMillis + 60_000
+                        }
+                        AlarmSoundManager.stop()
+                        AlarmScheduler.scheduleAlarm(context, newTrigger, nextStepIndex)
+                        session.nextAlarmAtMillis = newTrigger
+                        RecipeSession.save(context, session)
+                        onStepComplete()
+                    }
+                ) {
+                    Text("Add 1 minute")
                 }
             }
         }
@@ -180,7 +223,8 @@ fun TaskScreen(
                 TextButton(
                     onClick = {
                         showCancelConfirm = false
-                        if (isWaiting) AlarmScheduler.cancelAlarm(context, nextStepIndex)
+                        AlarmSoundManager.stop()
+                        if (showTimerView) AlarmScheduler.cancelAlarm(context, nextStepIndex)
                         RecipeSession.clear(context)
                         onRecipeCancelled()
                     }
@@ -219,12 +263,13 @@ private fun scheduleNextAndWait(
 }
 
 private fun formatRemainingTime(millis: Long): String {
-    val totalSeconds = (millis / 1000).toInt()
+    val totalSeconds = kotlin.math.abs(millis / 1000).toInt()
     val hours = totalSeconds / 3600
     val minutes = (totalSeconds % 3600) / 60
     val seconds = totalSeconds % 60
+    val sign = if (millis < 0) "-" else ""
     return when {
-        hours > 0 -> "%d:%02d:%02d".format(hours, minutes, seconds)
-        else -> "%02d:%02d".format(minutes, seconds)
+        hours > 0 -> "$sign%d:%02d:%02d".format(hours, minutes, seconds)
+        else -> "$sign%02d:%02d".format(minutes, seconds)
     }
 }
