@@ -5,6 +5,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
@@ -12,7 +13,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.lajthabalazs.doughdough.data.Recipe
+import com.lajthabalazs.doughdough.data.SavedRecipeRepository
 import com.lajthabalazs.doughdough.recipe.RecipeSession
+import kotlinx.coroutines.launch
 
 private const val SELECTOR = "selector"
 private const val STEPS = "steps"
@@ -24,7 +27,10 @@ fun NavGraph(
     navController: NavHostController = rememberNavController()
 ) {
     val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val savedRepo = remember(ctx) { SavedRecipeRepository(ctx.applicationContext) }
     var selectedRecipe by remember { mutableStateOf<Recipe?>(null) }
+    var selectedSavedRecipeId by remember { mutableStateOf<Long?>(null) }
     val pendingOpenTask = AppState.pendingOpenTaskStep
 
     // When app opens with a recipe in progress, go straight to the task screen
@@ -52,8 +58,9 @@ fun NavGraph(
     ) {
         composable(SELECTOR) {
             RecipeSelectorScreen(
-                onRecipeSelected = { recipe ->
+                onRecipeSelected = { recipe, savedRecipeId ->
                     selectedRecipe = recipe
+                    selectedSavedRecipeId = savedRecipeId
                     navController.navigate(STEPS)
                 }
             )
@@ -64,9 +71,12 @@ fun NavGraph(
                     recipe = recipe,
                     onBack = { navController.popBackStack() },
                     onStart = {
-                        val ctx = navController.context
+                        selectedSavedRecipeId?.let { id ->
+                            scope.launch { savedRepo.incrementTimesMade(id) }
+                        }
+                        val context = navController.context
                         val newSession = RecipeSession(recipe, 0)
-                        RecipeSession.save(ctx, newSession)
+                        RecipeSession.save(context, newSession)
                         navController.navigate(TASK) {
                             popUpTo(SELECTOR) { inclusive = false }
                         }
@@ -84,9 +94,13 @@ fun NavGraph(
                     onStepComplete = { sessionRefresh++ },
                     onAllComplete = {
                         AppState.completedRecipeName = currentSession.recipe.name
-                        navController.navigate(WELL_DONE) {
-                            popUpTo(SELECTOR) { inclusive = true }
-                            launchSingleTop = true
+                        scope.launch {
+                            AppState.completedRecipeTimesMade = selectedSavedRecipeId
+                                ?.let { savedRepo.getById(it)?.timesMade }
+                            navController.navigate(WELL_DONE) {
+                                popUpTo(SELECTOR) { inclusive = true }
+                                launchSingleTop = true
+                            }
                         }
                     },
                     onRecipeCancelled = {
@@ -99,8 +113,10 @@ fun NavGraph(
         }
         composable(WELL_DONE) {
             val recipeName = AppState.completedRecipeName ?: "Recipe"
+            val timesMade = AppState.completedRecipeTimesMade
             WellDoneScreen(
                 recipeName = recipeName,
+                timesMade = timesMade,
                 onContinue = {
                     navController.navigate(SELECTOR) {
                         popUpTo(0) { inclusive = true }

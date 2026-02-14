@@ -20,9 +20,16 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun WellDoneScreen(
     recipeName: String,
+    timesMade: Int? = null,
     onContinue: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val countText = when {
+        timesMade == null -> null
+        timesMade == 1 -> "First time completing this recipe!"
+        else -> "You've made this recipe $timesMade times!"
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -47,6 +54,15 @@ fun WellDoneScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
+        if (countText != null) {
+            Text(
+                text = countText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
         Spacer(modifier = Modifier.height(48.dp))
         Button(
             onClick = onContinue,

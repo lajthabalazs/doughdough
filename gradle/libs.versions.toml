@@ -41,4 +41,3 @@ google-api-services-sheets = { group = "com.google.apis", name = "google-api-ser
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
-

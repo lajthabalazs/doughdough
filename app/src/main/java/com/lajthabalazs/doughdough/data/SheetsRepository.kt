@@ -16,6 +16,9 @@ import okhttp3.Request
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
+/** Result of loading a spreadsheet: optional file name and list of recipes (one per tab). */
+data class SpreadsheetLoadResult(val fileName: String, val recipes: List<Recipe>)
+
 /**
  * Fetches recipes from Google Sheets.
  * When API key is present: uses the official Google Sheets API Android client (so key can be
@@ -38,7 +41,8 @@ class SheetsRepository(private val context: Context) {
         return match?.groupValues?.get(1) ?: trimmed
     }
 
-    suspend fun loadRecipes(spreadsheetUrlOrId: String): Result<List<Recipe>> = withContext(Dispatchers.IO) {
+    /** Load all recipes from a spreadsheet. Returns file name (when available) and recipes. */
+    suspend fun loadRecipes(spreadsheetUrlOrId: String): Result<SpreadsheetLoadResult> = withContext(Dispatchers.IO) {
         val spreadsheetId = extractSpreadsheetId(spreadsheetUrlOrId.ifBlank { defaultSpreadsheetId })
         val apiKey = BuildConfig.GOOGLE_SHEETS_API_KEY
 
@@ -47,7 +51,21 @@ class SheetsRepository(private val context: Context) {
             loadWithSheetsApi(spreadsheetId, apiKey)
         } else {
             Log.d(TAG, "No Google Sheets API key configured, using HTTP CSV fallback (single sheet, gid=0)")
-            loadWithHttpCsv(spreadsheetId)
+            loadWithHttpCsv(spreadsheetId).map { recipes ->
+                SpreadsheetLoadResult(fileName = spreadsheetId, recipes = recipes)
+            }
+        }
+    }
+
+    /** Load a single tab/sheet by name (for refresh). Returns null if tab not found. */
+    suspend fun loadSingleTab(spreadsheetUrlOrId: String, tabName: String): Result<Recipe?> = withContext(Dispatchers.IO) {
+        val spreadsheetId = extractSpreadsheetId(spreadsheetUrlOrId.trim())
+        if (spreadsheetId.isBlank()) return@withContext Result.failure(IllegalArgumentException("Invalid spreadsheet URL or ID"))
+        val apiKey = BuildConfig.GOOGLE_SHEETS_API_KEY
+        if (apiKey.isNotEmpty()) {
+            loadSingleTabWithSheetsApi(spreadsheetId, tabName, apiKey)
+        } else {
+            loadSingleTabWithCsv(spreadsheetId, tabName)
         }
     }
 
@@ -77,14 +95,17 @@ class SheetsRepository(private val context: Context) {
             .build()
     }
 
-    private fun loadWithSheetsApi(spreadsheetId: String, apiKey: String): Result<List<Recipe>> {
+    private fun loadWithSheetsApi(spreadsheetId: String, apiKey: String): Result<SpreadsheetLoadResult> {
         return try {
-            val sheets = buildSheetsService(apiKey) ?: return loadWithHttpCsv(spreadsheetId)
+            val sheets = buildSheetsService(apiKey) ?: return loadWithHttpCsv(spreadsheetId).map {
+                SpreadsheetLoadResult(fileName = spreadsheetId, recipes = it)
+            }
             Log.d(TAG, "Sheets API: fetching spreadsheet metadata for id=$spreadsheetId")
             val spreadsheet = sheets.spreadsheets()
                 .get(spreadsheetId)
-                .setFields("sheets.properties")
+                .setFields("sheets.properties,properties/title")
                 .execute()
+            val fileName = spreadsheet.properties?.title?.takeIf { it.isNotBlank() } ?: spreadsheetId
             val sheetList = spreadsheet.sheets ?: emptyList()
             Log.d(TAG, "Sheets API: found ${sheetList.size} sheet(s)")
             val recipes = mutableListOf<Recipe>()
@@ -100,12 +121,50 @@ class SheetsRepository(private val context: Context) {
             if (recipes.isEmpty()) {
                 Log.d(TAG, "Sheets API: no recipes with steps, falling back to CSV for first sheet")
             }
-            Result.success(
-                recipes.ifEmpty { listOf(parseCsvToRecipe(loadCsvViaHttp(spreadsheetId, 0), "Default")) }
-            )
+            val list = recipes.ifEmpty { listOf(parseCsvToRecipe(loadCsvViaHttp(spreadsheetId, 0), "Default")) }
+            Result.success(SpreadsheetLoadResult(fileName = fileName, recipes = list))
         } catch (e: Exception) {
             Log.e(TAG, "Sheets API failed, falling back to HTTP CSV", e)
-            loadWithHttpCsv(spreadsheetId)
+            loadWithHttpCsv(spreadsheetId).map {
+                SpreadsheetLoadResult(fileName = spreadsheetId, recipes = it)
+            }
+        }
+    }
+
+    private fun loadSingleTabWithSheetsApi(spreadsheetId: String, tabName: String, apiKey: String): Result<Recipe?> {
+        return try {
+            val sheets = buildSheetsService(apiKey) ?: return Result.success(null)
+            val spreadsheet = sheets.spreadsheets()
+                .get(spreadsheetId)
+                .setFields("sheets.properties")
+                .execute()
+            val sheetList = spreadsheet.sheets ?: emptyList()
+            val found = sheetList.any { (it.properties?.title ?: "") == tabName }
+            if (!found) {
+                Log.d(TAG, "Sheets API: no sheet named \"$tabName\"")
+                return Result.success(null)
+            }
+            val recipe = loadSheetDataWithClient(sheets, spreadsheetId, tabName)
+            Result.success(recipe?.takeIf { it.steps.isNotEmpty() })
+        } catch (e: Exception) {
+            Log.e(TAG, "Sheets API: load single tab failed", e)
+            Result.failure(e)
+        }
+    }
+
+    private fun loadSingleTabWithCsv(spreadsheetId: String, tabName: String): Result<Recipe?> {
+        return try {
+            val csv = loadCsvViaHttp(spreadsheetId, 0)
+            val recipe = parseCsvToRecipe(csv, "Recipe")
+            // CSV only gives one sheet; match if user asked for that name
+            if (recipe.name.equals(tabName, ignoreCase = true) || tabName.equals("Recipe", ignoreCase = true) || tabName.equals("Default", ignoreCase = true)) {
+                Result.success(recipe)
+            } else {
+                Result.success(null)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "CSV: load single tab failed", e)
+            Result.failure(e)
         }
     }
 
