@@ -14,9 +14,23 @@ val localProperties = Properties().apply {
 val sheetsApiKey: String =
     localProperties.getProperty("GOOGLE_SHEETS_API_KEY") ?: ""
 
+// Release signing (Play Store upload key): set KEYSTORE_FILE, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD in CI
+val releaseKeystoreFile = System.getenv("KEYSTORE_FILE")
+
 android {
     namespace = "com.lajthabalazs.doughdough"
     compileSdk = 35
+
+    signingConfigs {
+        if (releaseKeystoreFile != null) {
+            create("release") {
+                storeFile = file(releaseKeystoreFile)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            }
+        }
+    }
 
     defaultConfig {
         applicationId = "com.lajthabalazs.doughdough"
@@ -32,6 +46,9 @@ android {
 
     buildTypes {
         release {
+            if (releaseKeystoreFile != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

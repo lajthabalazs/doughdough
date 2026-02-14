@@ -1,0 +1,45 @@
+# Build: compile the app on every push and pull request
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: |
+            tools
+            platform-tools
+            platforms;android-35
+            build-tools;35.0.0
+
+      - name: Add GOOGLE_SHEETS_API_KEY to local.properties
+        run: |
+          if [ -n "${{ secrets.GOOGLE_SHEETS_API_KEY }}" ]; then
+            echo "GOOGLE_SHEETS_API_KEY=${{ secrets.GOOGLE_SHEETS_API_KEY }}" >> local.properties
+          fi
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build Debug
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Build Release
+        run: ./gradlew assembleRelease --no-daemon
