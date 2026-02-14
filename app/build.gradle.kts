@@ -15,11 +15,11 @@ val sheetsApiKey: String =
     localProperties.getProperty("GOOGLE_SHEETS_API_KEY") ?: ""
 
 android {
-    namespace = "ca.lajthabalazs.doughdough"
+    namespace = "com.lajthabalazs.doughdough"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "ca.lajthabalazs.doughdough"
+        applicationId = "com.lajthabalazs.doughdough"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
@@ -47,6 +47,11 @@ android {
         compose = true
         buildConfig = true
     }
+    packaging {
+        resources {
+            excludes += listOf("META-INF/INDEX.LIST", "META-INF/DEPENDENCIES")
+        }
+    }
 }
 
 dependencies {
@@ -61,6 +66,8 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.okhttp)
     implementation(libs.gson)
+    implementation(libs.google.api.client.gson)
+    implementation(libs.google.api.services.sheets)
     implementation(libs.kotlinx.coroutines.android)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
