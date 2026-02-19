@@ -1,6 +1,9 @@
 package com.lajthabalazs.doughdough.ui
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -37,6 +40,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -49,6 +53,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.core.net.toUri
 
 @Composable
 fun RecipeSelectorScreen(
@@ -139,7 +144,7 @@ fun RecipeSelectorScreen(
                         text = "Make sure the sheet is shared so anyone with the link can view it.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 8.dp)
+                         modifier = Modifier.padding(bottom = 8.dp)
                     )
                     Text(
                         text = "You can use this sheet as a reference on how to write your recipes:",
@@ -147,11 +152,25 @@ fun RecipeSelectorScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 4.dp)
                     )
+                    val exampleSheetUrl = "https://docs.google.com/spreadsheets/d/1B_gaW3csiWVCZG3FGsQiARSNZ_w_OPh1QZbwWWo-FNY/edit?usp=sharing"
+                    val exampleIntent = Intent(Intent.ACTION_VIEW, exampleSheetUrl.toUri()).addCategory(Intent.CATEGORY_BROWSABLE)
+                    val chooser = Intent.createChooser(exampleIntent, "Open with").apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
                     Text(
-                        text = "https://docs.google.com/spreadsheets/d/1B_gaW3csiWVCZG3FGsQiARSNZ_w_OPh1QZbwWWo-FNY/edit?usp=sharing",
+                        text = exampleSheetUrl,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(bottom = 12.dp)
+                        modifier = Modifier
+                            .padding(bottom = 12.dp)
+                            .pointerInput(Unit) {
+                                detectTapGestures(
+                                    onTap = { addDialogUrl = exampleSheetUrl },
+                                    onLongPress = {
+                                        context.startActivity(chooser)
+                                    }
+                                )
+                            }
                     )
                     OutlinedTextField(
                         value = addDialogUrl,

@@ -27,7 +27,8 @@ import com.lajthabalazs.doughdough.data.RecipeStep
 @Composable
 fun RecipeStepsScreen(
     recipe: Recipe,
-    onStart: () -> Unit,
+    savedRecipeId: Long?,
+    onStart: (savedRecipeId: Long?) -> Unit,
     onBack: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -69,7 +70,7 @@ fun RecipeStepsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
         Button(
-            onClick = onStart,
+            onClick = { onStart(savedRecipeId) },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp)

@@ -36,8 +36,8 @@ android {
         applicationId = "com.lajthabalazs.doughdough"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.0.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // API key from gradle.properties or local.properties (optional - gviz fallback for gid=0)
