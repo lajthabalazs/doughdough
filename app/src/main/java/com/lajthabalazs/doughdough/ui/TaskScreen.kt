@@ -3,6 +3,8 @@ package com.lajthabalazs.doughdough.ui
 import android.content.res.Configuration
 import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -82,11 +84,16 @@ fun TaskScreen(
     @Composable
     fun TaskContent() {
         Column(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = session.recipe.name,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = session.recipe.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             Spacer(modifier = Modifier.height(8.dp))
 
             if (!showTimerView && step != null) {
@@ -113,18 +120,23 @@ fun TaskScreen(
                     }
                 }
             } else if (showTimerView) {
-                Text(
-                    text = "Next: ${nextStep!!.title}",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = formatRemainingTime(remainingMillis),
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Next: ${nextStep!!.title}",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = formatRemainingTime(remainingMillis),
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         }
     }
@@ -150,7 +162,22 @@ fun TaskScreen(
                         Text(
                             text = step.title,
                             style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+                }
+                if (isLandscape && showTimerView) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = session.recipe.name,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                     }
@@ -213,9 +240,14 @@ fun TaskScreen(
                                 session.setCurrentStep(nextStepIndex)
                                 RecipeSession.save(context, session)
                                 onStepComplete()
-                            }
+                            },
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Start ${nextStep!!.title}")
+                            Text(
+                                text = "Start ${nextStep!!.title}",
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         TextButton(
@@ -253,42 +285,58 @@ fun TaskScreen(
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
-            Column(
+            BoxWithConstraints(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .verticalScroll(taskContentScroll)
             ) {
-                    if (!showTimerView && step != null) {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                if (showTimerView) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Column(
-                                modifier = Modifier
-                                    .padding(20.dp)
-                                    .fillMaxWidth()
+                            Text(
+                                text = "Next: ${nextStep!!.title}",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = formatRemainingTime(remainingMillis),
+                                style = MaterialTheme.typography.displaySmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(taskContentScroll)
+                    ) {
+                        if (step != null) {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                             ) {
-                                Text(
-                                    text = step.description,
-                                    style = MaterialTheme.typography.bodyLarge
-                                )
+                                Column(
+                                    modifier = Modifier
+                                        .padding(20.dp)
+                                        .fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = step.description,
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                }
                             }
                         }
-                    } else if (showTimerView) {
-                        Text(
-                            text = "Next: ${nextStep!!.title}",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = formatRemainingTime(remainingMillis),
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
                     }
+                }
             }
             Spacer(modifier = Modifier.width(24.dp))
             Column(
