@@ -112,8 +112,9 @@ fun NavGraph(
             var sessionRefresh by remember { mutableStateOf(0) }
             val currentSession = remember(sessionRefresh) { RecipeSession.restore(ctx) }
             if (currentSession != null) {
-                TaskScreen(
-                    session = currentSession,
+                Box(Modifier.fillMaxSize()) {
+                    TaskScreen(
+                        session = currentSession,
                     onStepComplete = { sessionRefresh++ },
                     onAllComplete = {
                         AppState.completedRecipeName = currentSession.recipe.name
@@ -132,6 +133,7 @@ fun NavGraph(
                         }
                     }
                 )
+                }
             }
         }
         composable(WELL_DONE) {
